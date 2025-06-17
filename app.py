@@ -1,9 +1,12 @@
 import os
 import uuid
 import threading
+import traceback
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from moviepy.editor import *
+from moviepy.audio.fx.all import audio_loop, volumex
+from moviepy.video.fx.all import fadeout
 import requests
 
 # --- CONFIGURACIÓN INICIAL ---
@@ -59,35 +62,44 @@ def serve_video(filename):
 def render_task(job_id, data):
     """
     La función que hace el trabajo pesado de crear el video con MoviePy.
+    Ahora con transiciones, música de fondo y control de volúmenes.
     """
     try:
         jobs[job_id]['status'] = 'processing'
         
-        config = data['renderSettings']
-        scenes_data = data['scenes']
+        # Extraer las configuraciones y escenas del request
+        config = data.get('renderSettings', {})
+        scenes_data = data.get('scenes', [])
+
+        # Obtener nuevas configuraciones con valores por defecto
+        narration_volume = float(config.get('narrationVolume', 1.0))
+        music_volume = float(config.get('musicVolume', 0.25))
+        music_url = config.get('backgroundMusicUrl')
+        transition_type = config.get('transitionType', 'none')
+        transition_duration = float(config.get('transitionDuration', 0.5))
         
         final_clips = []
         total_scenes = len(scenes_data)
         
         for i, scene in enumerate(scenes_data):
             # 1. Descargar los assets (imagen y audio)
-            image_path = download_file(scene['imageUrl'], f"{scene['id']}.jpg")
-            audio_path = download_file(scene['audioUrl'], f"{scene['id']}.mp3")
+            image_path = download_file(scene['imageUrl'], f"{job_id}_{scene['id']}.jpg")
+            audio_path = download_file(scene['audioUrl'], f"{job_id}_{scene['id']}.mp3")
 
-            # 2. Crear clips de MoviePy
-            audio_clip = AudioFileClip(audio_path)
+            # 2. Crear clips de MoviePy y aplicar volumen a la narración
+            audio_clip = AudioFileClip(audio_path).fx(volumex, narration_volume)
             image_clip = ImageClip(image_path).set_duration(audio_clip.duration)
             
-            # 3. Aplicar configuraciones
-            w, h = (1080, 1920) if config['resolucion'] == '9:16' else (1920, 1080)
+            # 3. Aplicar configuraciones de imagen
+            w, h = (1080, 1920) if config.get('resolucion') == '9:16' else (1920, 1080)
             
-            # Lógica para "Cubrir Imagen" (Zoom/Crop)
             if config.get('cubrirImagen'):
                 image_clip = image_clip.resize(height=h).crop(x_center=image_clip.w/2, width=w)
             else:
                 image_clip = image_clip.resize(width=w)
 
             image_clip = image_clip.set_position('center')
+            image_clip.audio = audio_clip # Asignar el audio con el volumen ya ajustado
 
             # 4. Añadir subtítulos si es necesario
             if config.get('subtitulos'):
@@ -97,36 +109,62 @@ def render_task(job_id, data):
                 final_clip = CompositeVideoClip([image_clip, text_clip], size=(w,h))
             else:
                 final_clip = image_clip
-
+            
             final_clips.append(final_clip)
             
-            # 5. Actualizar el progreso
-            jobs[job_id]['progress'] = int(((i + 1) / total_scenes) * 100)
+            # 5. Actualizar el progreso (hasta 90% para dejar margen al ensamblaje)
+            jobs[job_id]['progress'] = int(((i + 1) / total_scenes) * 90)
 
-        # 6. Ensamblar el video final
-        video = concatenate_videoclips(final_clips, method="compose")
+        # 6. Ensamblar el video final con transiciones
+        # Para un fundido cruzado (crossfade), superponemos los clips y aplicamos un fadeout.
+        if transition_type == 'fade' and len(final_clips) > 1 and transition_duration > 0:
+            video = concatenate_videoclips(final_clips, 
+                                           method="compose", 
+                                           transition=fadeout.FadeOut(duration=transition_duration),
+                                           padding=-transition_duration)
+        else:
+            # Sin transición
+            video = concatenate_videoclips(final_clips, method="compose")
         
-        # ... Aquí se añadiría la lógica para la música de fondo y las transiciones ...
-        
-        # 7. Escribir el archivo de video
+        # 7. Añadir música de fondo si se especificó
+        if music_url:
+            print(f"Descargando música de fondo desde: {music_url}")
+            music_path = download_file(music_url, f"bg_music_{job_id}.mp3")
+            if music_path:
+                try:
+                    music_clip = AudioFileClip(music_path)
+                    music_clip = music_clip.fx(volumex, music_volume) # Aplicar volumen a la música
+                    music_clip = music_clip.fx(audio_loop, duration=video.duration) # Ajustar duración
+                    
+                    # Combinar audio del video (narración) con la música
+                    final_audio = CompositeAudioClip([video.audio, music_clip])
+                    video.audio = final_audio
+                except Exception as music_error:
+                    print(f"Advertencia: No se pudo procesar la música de fondo. Error: {music_error}")
+
+        jobs[job_id]['progress'] = 95 # Progreso antes de escribir el archivo final
+
+        # 8. Escribir el archivo de video
         output_filename = f"{job_id}.mp4"
         output_path = os.path.join(VIDEO_DIR, output_filename)
-        # El preset 'ultrafast' es para renderizados rápidos de prueba
-        video.write_videofile(output_path, codec='libx264', audio_codec='aac', preset='ultrafast', ffmpeg_params=["-crf","23"])
+        video.write_videofile(output_path, codec='libx264', audio_codec='aac', preset='ultrafast', ffmpeg_params=["-crf", "23"])
         
-        # 8. Marcar el trabajo como completado
+        # 9. Marcar el trabajo como completado
         jobs[job_id]['status'] = 'completed'
+        jobs[job_id]['progress'] = 100
         jobs[job_id]['videoUrl'] = f"{request.host_url}videos/{output_filename}"
 
     except Exception as e:
         jobs[job_id]['status'] = 'error'
-        print(f"Error en el trabajo de renderizado {job_id}: {e}")
+        # Imprimir el traceback completo en la consola del servidor para una depuración fácil
+        print(f"Error CRÍTICO en el trabajo de renderizado {job_id}:")
+        traceback.print_exc()
 
 def download_file(url, filename):
     """Función auxiliar para descargar un archivo desde una URL."""
     path = os.path.join(TEMP_DIR, filename)
     try:
-        with requests.get(url, stream=True) as r:
+        with requests.get(url, stream=True, timeout=30) as r:
             r.raise_for_status()
             with open(path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
@@ -137,5 +175,6 @@ def download_file(url, filename):
         return None
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5002)
+    # Usar '0.0.0.0' para hacerlo accesible en la red local si es necesario
+    app.run(debug=True, host='0.0.0.0', port=5002)
 
