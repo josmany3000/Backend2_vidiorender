@@ -1,12 +1,17 @@
+# render.yaml
 services:
   - type: web
     name: backend-render-videos
-    env: python
-    plan: free
-    buildCommand: ""
-    startCommand: python app.py
-    envVars:
+    env: python # <--- Esta es la definición del entorno de ejecución (Python)
+    plan: free # Puedes mantenerlo si es tu plan deseado
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python app.py" # Asegúrate de que tu archivo principal se llama app.py
+    envVars: # <--- Aquí van tus variables de entorno específicas de la aplicación
       - key: PYTHON_VERSION
         value: 3.10
-    env: 
-      PORT: 5002
+      - key: PORT # <--- Define el puerto aquí como una variable de entorno
+        value: 5002
+
+# Si tu aplicación Flask utiliza os.environ.get('PORT') para obtener el puerto,
+# entonces es correcto definirlo así. Si no, tu app.run(port=5002) es suficiente
+# y la línea de PORT no sería estrictamente necesaria en envVars, aunque no causa daño.
