@@ -1,4 +1,5 @@
 flask
 flask-cors
-moviepy
+moviepy==1.0.3 # <-- Fijar versión
 requests
+imageio
