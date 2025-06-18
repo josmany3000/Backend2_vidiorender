@@ -1,0 +1,17 @@
+# render.yaml
+services:
+  - type: web
+    name: video-render-backend
+    env: python
+    buildCommand: "pip install -r requirements.txt" # Instala las dependencias
+    startCommand: "python your_app_name.py" # Inicia tu aplicación Flask
+    ports:
+      - 5002 # El puerto que tu aplicación Flask está usando
+
+# Opcional: Si necesitas más recursos o un plan diferente
+# plan: standard # developer | standard | pro | private
+
+# Opcional: Variables de entorno si las necesitas (ej. API keys)
+# envVars:
+#   - key: MY_API_KEY
+#     value: my_secret_value
