@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: backend-render-videos
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: ""
+    startCommand: python app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
