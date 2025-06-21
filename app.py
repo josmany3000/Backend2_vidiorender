@@ -27,7 +27,10 @@ storage_client = None
 
 if GCS_CREDENTIALS_JSON:
     try:
-        storage_client = storage.Client.from_service_account_info(eval(GCS_CREDENTIALS_JSON))
+        # Usar un método más seguro que eval() para cargar las credenciales
+        import json
+        creds_dict = json.loads(GCS_CREDENTIALS_JSON)
+        storage_client = storage.Client.from_service_account_info(creds_dict)
         print("Cliente de Google Cloud Storage inicializado correctamente.")
     except Exception as e:
         print(f"Error al inicializar el cliente de GCS: {e}")
@@ -71,6 +74,7 @@ def process_video(job_id, scenes, render_settings):
     """
     Función principal de renderizado. Se ejecuta en un hilo separado.
     """
+    # Usar el directorio /tmp, que suele ser escribible en plataformas de hosting
     tmp_dir = f"/tmp/{job_id}"
     os.makedirs(tmp_dir, exist_ok=True)
     
@@ -100,7 +104,9 @@ def process_video(job_id, scenes, render_settings):
                 local_audio_path = os.path.join(tmp_dir, f"audio_{i}.mp3")
                 download_file(audio_url, local_audio_path)
 
-            local_paths.append({'media': local_media_path, 'audio': local_audio_path, 'duration': 5}) # Duración fija por ahora
+            # Usar la duración de la escena si se proporciona, de lo contrario, 5 segundos
+            duration = scene.get('duration', 5)
+            local_paths.append({'media': local_media_path, 'audio': local_audio_path, 'duration': duration})
 
         jobs[job_id]['progress'] = 35
 
@@ -117,6 +123,9 @@ def process_video(job_id, scenes, render_settings):
             # Añadir audio si existe
             if paths['audio']:
                 audio_clip = AudioFileClip(paths['audio'])
+                # Asegurarse de que el audio no sea más largo que el clip de video
+                if audio_clip.duration > clip.duration:
+                    audio_clip = audio_clip.subclip(0, clip.duration)
                 clip = clip.set_audio(audio_clip)
 
             # TODO: Añadir subtítulos y animaciones aquí si es necesario
@@ -134,6 +143,7 @@ def process_video(job_id, scenes, render_settings):
         print(f"[{job_id}] Escribiendo video final...")
         jobs[job_id]['progress'] = 85
         final_video_path = os.path.join(tmp_dir, "final_video.mp4")
+        # Parámetros optimizados para renderizado web
         final_clip.write_videofile(final_video_path, codec="libx264", audio_codec="aac", fps=24)
         
         jobs[job_id]['progress'] = 95
@@ -155,11 +165,10 @@ def process_video(job_id, scenes, render_settings):
         jobs[job_id].update({"status": "error", "error": str(e)})
     finally:
         # 7. Limpiar archivos temporales
+        import shutil
         if os.path.exists(tmp_dir):
-            for root, dirs, files in os.walk(tmp_dir, topdown=False):
-                for name in files: os.remove(os.path.join(root, name))
-                for name in dirs: os.rmdir(os.path.join(root, name))
-            os.rmdir(tmp_dir)
+            shutil.rmtree(tmp_dir)
+            print(f"[{job_id}] Archivos temporales eliminados.")
 
 # --- ENDPOINTS DE LA API ---
 
@@ -194,5 +203,13 @@ def get_job_status(job_id):
         return jsonify({"error": "Trabajo no encontrado."}), 404
     return jsonify(job)
 
+
+# --- INICIO DE LA APLICACIÓN (CORREGIDO PARA DEPLOYMENT) ---
 if __name__ == '__main__':
-    app.run(port=5002, debug=True)
+    # Render (y otras plataformas) te dará el puerto a través de la variable de entorno PORT.
+    # Si no existe (ej. cuando lo corres en tu máquina local), usará el 5002 por defecto.
+    port = int(os.environ.get('PORT', 5002))
+    
+    # El host '0.0.0.0' hace que el servidor sea accesible públicamente.
+    # Es crucial para que el servicio de hosting pueda comunicarse con tu aplicación.
+    app.run(host='0.0.0.0', port=port)
