@@ -7,5 +7,4 @@ google-cloud-speech
 moviepy
 requests
 numpy
-Pillow
 gunicorn
