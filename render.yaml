@@ -1,21 +1,22 @@
-# render.yaml - Versión Final y Corregida
-
 services:
   - type: web
-    name: renderizador-inteligente-ia
+    name: renderizador-ia
     env: python
-    plan: free
+    plan: free  # Puedes cambiar a 'starter' o superior si lo necesitas
+    runtime: python
     region: oregon
-    healthCheckPath: /
-    
-    # Aquí forzamos una versión de Python estable y compatible
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
-
     buildCommand: |
-      apt-get update && apt-get install -y ffmpeg imagemagick
       pip install --upgrade pip
       pip install -r requirements.txt
-
-    startCommand: "gunicorn --workers 3 --threads 3 --timeout 120 app:app"
+    startCommand: python app.py
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false  # Agrega este valor desde el dashboard de Render
+      - key: GOOGLE_CLOUD_PROJECT
+        sync: false
+      - key: GCS_BUCKET_NAME
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
+      - key: PORT
+        value: 5001
