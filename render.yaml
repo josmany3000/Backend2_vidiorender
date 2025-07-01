@@ -1,4 +1,4 @@
-# render.yaml - Versión a prueba de fallos
+# render.yaml - Versión Final y Corregida
 
 services:
   - type: web
@@ -7,6 +7,11 @@ services:
     plan: free
     region: oregon
     healthCheckPath: /
+    
+    # Aquí forzamos una versión de Python estable y compatible
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
 
     buildCommand: |
       apt-get update && apt-get install -y ffmpeg imagemagick
