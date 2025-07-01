@@ -2,16 +2,17 @@ services:
   - type: web
     name: renderizador-ia
     env: python
-    plan: free  # Puedes cambiar a 'starter' o superior si lo necesitas
-    runtime: python
+    plan: free
     region: oregon
+    runtime: python
     buildCommand: |
+      apt-get update && apt-get install -y ffmpeg
       pip install --upgrade pip
       pip install -r requirements.txt
-    startCommand: python app.py
+    startCommand: gunicorn --workers 3 --threads 3 --timeout 180 app:app
     envVars:
       - key: GOOGLE_API_KEY
-        sync: false  # Agrega este valor desde el dashboard de Render
+        sync: false
       - key: GOOGLE_CLOUD_PROJECT
         sync: false
       - key: GCS_BUCKET_NAME
