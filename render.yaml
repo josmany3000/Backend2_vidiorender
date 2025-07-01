@@ -1,4 +1,4 @@
-# render.yaml - Versión actualizada con dependencias del sistema
+# render.yaml - Versión corregida
 
 services:
   # 1. El servicio web: ligero y rápido, solo gestiona la API.
@@ -7,16 +7,11 @@ services:
     env: python
     plan: free
     region: oregon
-
     buildCommand: |
-      # Comandos para instalar dependencias del sistema operativo
-      apt-get update && apt-get install -y imagemagick ffmpeg # <-- ¡LÍNEAS AÑADIDAS!
-      # Comandos para instalar dependencias de Python
+      apt-get update && apt-get install -y imagemagick ffmpeg
       pip install --upgrade pip
       pip install -r requirements.txt
-
     startCommand: "gunicorn app:app"
-
     envVars:
       - key: GCS_BUCKET_NAME
         value: "nombre-de-tu-bucket-en-gcs"
@@ -35,16 +30,11 @@ services:
     name: worker-renderizador-videos
     env: python
     plan: free
-
     buildCommand: |
-      # Comandos para instalar dependencias del sistema operativo
-      apt-get update && apt-get install -y imagemagick ffmpeg # <-- ¡LÍNEAS AÑADIDAS!
-      # Comandos para instalar dependencias de Python
+      apt-get update && apt-get install -y imagemagick ffmpeg
       pip install --upgrade pip
       pip install -r requirements.txt
-
     startCommand: "rq worker -u $REDIS_URL default"
-
     envVars:
       - key: GCS_BUCKET_NAME
         value: "nombre-de-tu-bucket-en-gcs"
@@ -58,7 +48,8 @@ services:
           name: cola-de-renderizado
           property: connectionString
 
-addons:
-  - name: cola-de-renderizado
+  # 3. El servicio de Redis (antes addons)
+  - type: redis
+    name: cola-de-renderizado
     plan: free
-
+    
