@@ -1,10 +1,10 @@
-# requirements.txt (para el servicio backend-render-videos)
-
-Flask==3.0.3
-Flask-Cors==4.0.1
-requests==2.32.3
-gunicorn==22.0.0
-python-dotenv==1.0.1
-google-cloud-storage==2.16.0
-werkzeug==3.0.3
-moviepy==1.0.3
+flask
+flask_cors
+python-dotenv
+google-cloud-storage
+google-cloud-speech
+moviepy
+requests
+numpy
+Pillow
+gunicorn
