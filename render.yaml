@@ -1,4 +1,4 @@
-# render.yaml - Versión final v4.2 (Método de variable de entorno)
+# render.yaml - Versión a prueba de fallos
 
 services:
   - type: web
@@ -14,19 +14,3 @@ services:
       pip install -r requirements.txt
 
     startCommand: "gunicorn --workers 3 --threads 3 --timeout 120 app:app"
-
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.6
-      # Las siguientes variables DEBES crearlas en el Dashboard de Render
-      # Asegúrate de marcarlas como "Secret" si contienen información sensible.
-      - key: GOOGLE_API_KEY
-        fromSecret: true
-      - key: GOOGLE_CLOUD_PROJECT
-        sync: false
-      - key: GCS_BUCKET_NAME
-        sync: false
-      # Esta es la variable CLAVE que contendrá todo tu archivo JSON de credenciales
-      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
-        fromSecret: true
-        
