@@ -1,40 +1,32 @@
-# render.yaml - Versión final para Renderizador Inteligente v4.0
+# render.yaml - Versión final v4.2 (Método de variable de entorno)
 
 services:
-  # Solo necesitamos UN servicio web, ya que app.py usa hilos para el trabajo pesado.
   - type: web
     name: renderizador-inteligente-ia
     env: python
-    plan: free # Puedes cambiarlo a un plan superior si necesitas más potencia
+    plan: free
     region: oregon
     healthCheckPath: /
 
-    # Comandos para instalar las herramientas de video y las librerías de Python
     buildCommand: |
       apt-get update && apt-get install -y ffmpeg imagemagick
       pip install --upgrade pip
       pip install -r requirements.txt
 
-    # Comando para iniciar el servidor web con Gunicorn
     startCommand: "gunicorn --workers 3 --threads 3 --timeout 120 app:app"
 
-    # Variables de entorno que tu app.py necesita
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.6
-      # Apunta a la ruta donde Render montará el archivo de credenciales
-      - key: GOOGLE_APPLICATION_CREDENTIALS
-        value: /etc/secrets/gcp_credentials.json
-      # Las siguientes variables las debes configurar en el dashboard de Render
+      # Las siguientes variables DEBES crearlas en el Dashboard de Render
+      # Asegúrate de marcarlas como "Secret" si contienen información sensible.
       - key: GOOGLE_API_KEY
         fromSecret: true
       - key: GOOGLE_CLOUD_PROJECT
         sync: false
       - key: GCS_BUCKET_NAME
         sync: false
-        
-    # Aquí definimos el archivo JSON de credenciales como un "Secret File"
-    secretFiles:
-      - name: gcp_credentials.json
-        path: /etc/secrets/gcp_credentials.json
+      # Esta es la variable CLAVE que contendrá todo tu archivo JSON de credenciales
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        fromSecret: true
         
